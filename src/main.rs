@@ -5,7 +5,8 @@ use std::process;
 use std::path::Path;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
-use std::collections::{HashMap};
+//use std::collections::{HashMap};
+use std::collections::BTreeMap;
 //use rand::Rng;
 //use std::rc::Rc;
 //use std::cell::RefCell;
@@ -14,43 +15,67 @@ use std::collections::{HashMap};
 #[derive(Debug, Clone)]
 struct Vertex {
 	vertex_id: u32,
-	incoming: HashMap<u32,u32>,
-	outgoing: HashMap<u32,u32>,
+	incoming: BTreeMap<u32,u32>,
+	incoming_cnt: usize,
+	outgoing: BTreeMap<u32,u32>,
+	outgoing_cnt: usize,
 }
 
 impl Vertex {
 
 	pub fn new(id : &u32) -> Vertex {
-		let incoming = HashMap::<u32,u32>::new();
-		let outgoing = HashMap::<u32,u32>::new();
-		Vertex {vertex_id: id.clone(), incoming: incoming, outgoing: outgoing}
+		let incoming = BTreeMap::<u32,u32>::new();
+		let outgoing = BTreeMap::<u32,u32>::new();
+		Vertex {vertex_id: id.clone(), 
+				incoming: incoming, 
+				outgoing: outgoing,
+				incoming_cnt : 0,
+				outgoing_cnt : 0,
+				}
 	}
 	
 	pub fn add_outgoing(&mut self, vertex_id: u32) {
 		let counter = self.outgoing.entry(vertex_id).or_insert(0);
 		*counter += 1;
+		self.outgoing_cnt += 1;
 	}
 
 	pub fn del_outgoing (&mut self, vertex_id: u32) ->  Result <(), String> {
 
 		match self.outgoing.get_mut(&vertex_id) {
 			None | Some(0)  => Err("Invalid Vertex".to_string()),
-			Some(1)        =>  { self.outgoing.remove(&vertex_id); Ok(()) }, 
-			Some(x)        =>  { *x -=1;  Ok(()) },
+			Some(1)        =>  	{ 	
+									self.outgoing.remove(&vertex_id); 
+									self.outgoing_cnt -= 1;
+									Ok(())
+								}, 
+			Some(x)        => 	{	*x -=1;  
+								 	self.outgoing_cnt -= 1;
+								 	Ok(())
+								},
 		}
 	}
 
 	pub fn add_incoming(&mut self, vertex_id: u32) {
 		let counter = self.incoming.entry(vertex_id).or_insert(0);
 		*counter += 1;
+		self.incoming_cnt += 1;
 	}
 
 	pub fn del_incoming (&mut self, vertex_id: u32) -> Result<(),String> {
 	
 		match self.incoming.get_mut(&vertex_id) {
 			None | Some(0)  => Err("Invalid Vertex".to_string()),
-			Some(1)        =>  { self.incoming.remove(&vertex_id); Ok(()) }, 
-			Some(x)        =>  { *x -=1;  Ok(()) },
+			Some(1)        =>	{ 
+									self.incoming.remove(&vertex_id); 
+									self.incoming_cnt -= 1;
+									Ok(())
+								}, 
+			Some(x)        => 	{
+									*x -=1;
+									self.incoming_cnt -= 1;
+									Ok(())
+								},
 		}
 
 	}
@@ -59,13 +84,13 @@ impl Vertex {
 
 #[derive(Debug,Clone)]
 struct Graph {
-	vertex_map:  HashMap::<u32, Vertex>,
+	vertex_map:  BTreeMap::<u32, Vertex>,
 }
 
 
 impl Graph {
 	pub fn new() -> Graph {
-		let v_map = HashMap::<u32, Vertex>::new();
+		let v_map = BTreeMap::<u32, Vertex>::new();
 		Graph {
 				vertex_map: v_map,
 		}
@@ -131,13 +156,13 @@ impl Graph {
 		// add the edge to the first vertex's adjanceny list
 		let vert = v_map.get_mut(&v1).unwrap(); 
 		vert.add_outgoing(v2);
-		let new_len = vert.outgoing.len();
+		let new_cnt = vert.outgoing_cnt.clone();
 
 		// add the edge to the second vertex adjacentcy list
-		let vert = v_map.get_mut(&v2).unwrap(); 
-		vert.add_incoming(v1);
+		let vert2 = v_map.get_mut(&v2).unwrap(); 
+		vert2.add_incoming(v1);
 
-		Some(new_len)
+		Some(new_cnt)
 
 	}
 }
@@ -207,13 +232,13 @@ mod tests {
 		let mut g = Graph::new();
 		assert_eq!(g.add_edge(1,2),Some(1));
 		assert_eq!(g.add_edge(1,3),Some(2));
-		assert_eq!(g.add_edge(2,3),Some(3));
-		assert_eq!(g.add_edge(2,4),Some(4));
-		assert_eq!(g.add_edge(3,4),Some(5));
+		assert_eq!(g.add_edge(2,3),Some(1));
+		assert_eq!(g.add_edge(2,4),Some(2));
+		assert_eq!(g.add_edge(3,4),Some(1));
 		assert_eq!(g.get_outgoing(1),&[2,3]);
-		assert_eq!(g.get_outgoing(2),&[1,3,4]);
-		assert_eq!(g.get_outgoing(3),&[1,2,4]);
-		assert_eq!(g.get_outgoing(4),&[2,3]);
+		assert_eq!(g.get_outgoing(2),&[3,4]);
+		assert_eq!(g.get_outgoing(3),&[4]);
+		assert_eq!(g.get_outgoing(4),&[]);
 		g
 	} 
 
@@ -223,12 +248,12 @@ mod tests {
 		assert_eq!(g.create_vertex(&1),Some(1));
 		assert_eq!(g.create_vertex(&2),Some(2));
 		assert_eq!(g.add_edge(1,2),Some(1));
-		assert_eq!(g.get_vertexes(),vec!(2,1));
+		assert_eq!(g.get_vertexes(),vec!(1,2));
 		assert_eq!(g.create_vertex(&3),Some(3));
 		assert_eq!(g.add_edge(1,3),Some(2));
-		assert_eq!(g.add_edge(2,3),Some(3));
+		assert_eq!(g.add_edge(2,3),Some(1));
 		assert_eq!(g.get_vertexes(),vec!(1,2,3));
-		assert_eq!(g.add_edge(1,4),Some(4));
+		assert_eq!(g.add_edge(1,4),Some(3));
 		assert_eq!(g.get_vertexes(),vec!(1,2,3,4));
 		println!("{:?}",g);
 
@@ -240,20 +265,21 @@ mod tests {
 		assert_eq!(g.add_edge(1,2),Some(1));
 		assert_eq!(g.get_outgoing(1),&[2]);
 		assert_eq!(g.get_incoming(2),&[1]);
-		assert_eq!(g.add_edge(1,2),Some(2));
-		assert_eq!(g.get_outgoing(1),&[2,2]);
-		assert_eq!(g.get_incoming(2),&[1,1]);
+		assert_eq!(g.add_edge(1,3),Some(2));
+		assert_eq!(g.get_outgoing(1),&[2,3]);
+		assert_eq!(g.get_incoming(2),&[1]);
 	}
 
 	#[test]
 	fn test_add_del() {
 		let mut g = setup_basic1();
-		assert_eq!(g.add_edge(1,2),Some(6));
-		assert_eq!(g.get_outgoing(1),&[2,3,2]);
-		assert_eq!(g.get_outgoing(2),&[1,3,4,1]);
-		assert_eq!(g.get_outgoing(3),&[1,2,4]);
+		assert_eq!(g.get_outgoing(1),&[2,3]);
+		assert_eq!(g.add_edge(1,2),Some(3));
+		assert_eq!(g.get_outgoing(1),&[2,3]);
+		assert_eq!(g.get_outgoing(2),&[3,4]);
+		assert_eq!(g.get_outgoing(3),&[4]);
 		assert_eq!(g.delete_edge(1,2),Ok(()));
-		assert_eq!(g.get_outgoing(1),&[3,2]);
+		assert_eq!(g.get_outgoing(1),&[2,3]);
 		assert_eq!(g.delete_edge(1,2),Ok(()));
 		assert_eq!(g.get_outgoing(1),&[3]);
 		
