@@ -7,7 +7,10 @@ use std::collections::{HashMap,BTreeMap};
 //use rand::Rng;
 //use std::rc::Rc;
 //use std::cell::RefCell;
+use std::thread;
 
+static mut max_out_level : u32= 0;
+static mut max_in_level : u32 = 0;
 
 #[derive(Debug, Clone)]
 struct Vertex {
@@ -143,7 +146,13 @@ impl Graph {
 
 	pub fn dfs_outgoing(&mut self, vertex_id:  u32, start_vertex: u32, level: u32) {
 			
-			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+//			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+			unsafe {
+			if level > max_out_level {
+				max_out_level = level;
+				println!("reached level {}", max_out_level);
+			}
+			}
 			
 			// Set current node to explored
 			self.explored.insert(vertex_id,true);
@@ -178,7 +187,13 @@ impl Graph {
 
 	pub fn dfs_incoming(&mut self, vertex_id:  u32, start_vertex: u32, level: u32) {
 			
-			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+//			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+			unsafe {
+			if level > max_in_level {
+				max_in_level = level;
+				println!("reached level {}", max_in_level);
+			}
+			}
 			
 			// Set current node to explored
 			self.explored.insert(vertex_id,true);
@@ -213,7 +228,7 @@ impl Graph {
 
 	pub fn dfs_loop_incoming(&mut self, list: &Vec<u32>) {
 
-		println!("Looping on incoming DFS");
+//		println!("Looping on incoming DFS");
 		self.finished_order = Vec::<u32>::new();
 		self.start_search = HashMap::<u32,Vec::<u32>>::new();
 		self.explored = HashMap::<u32,bool>::new();
@@ -225,7 +240,7 @@ impl Graph {
 				io::stdout().flush().unwrap();
 			}
 			let vertex = v.clone();
-			println!("Looping on {}",vertex);
+//			println!("Looping on {}",vertex);
 			if !self.explored.contains_key(&vertex) {
 				self.dfs_incoming(vertex,vertex,0);
 			}
@@ -234,7 +249,7 @@ impl Graph {
 	}
 
 	pub fn dfs_loop_outgoing(&mut self, list: &Vec<u32>) {
-		println!("Looping on outgoing DFS");
+//		println!("Looping on outgoing DFS");
 		self.finished_order = Vec::<u32>::new();
 		self.start_search = HashMap::<u32,Vec::<u32>>::new();
 		self.explored = HashMap::<u32,bool>::new();
@@ -246,7 +261,7 @@ impl Graph {
 				io::stdout().flush().unwrap();
 			}
 			let vertex = v.clone();
-			println!("Looping on {}",vertex);
+//			println!("Looping on {}",vertex);
 			if !self.explored.contains_key(&vertex) {
 				self.dfs_outgoing(vertex,vertex,0);
 			}
@@ -371,24 +386,26 @@ fn main() {
 			io::stdout().flush().unwrap();
 		} 
     }
-	println!("Read {} lines",_count);
-//	g.print_vertexes();
-//	g.dfs_incoming(1,1,0);
-//	println!("Finish Order {:?}", g.finished_order);
-//	println!("Starting Vertex {:?}", g.start_search);
-	g.finished_order = Vec::<u32>::new();
-	g.start_search = HashMap::<u32,Vec::<u32>>::new();
-	g.explored = HashMap::<u32,bool>::new();
-	let list : Vec<u32> = g.vertex_map.keys().cloned().collect();
-	g.dfs_loop_incoming(&list);
-//	println!("Finish Order {:?}", g.finished_order);
-//	println!("Starting Vertex {:?}", g.start_search);
-	let list : Vec<u32> = g.finished_order.iter().rev().cloned().collect();
-	g.dfs_loop_outgoing(&list);
-	println!("\n Final result");
-	for (k,v) in g.start_search {
-		println!("{} ({len}) ",k,len=v.len());
-	}
+	let child = thread::Builder::new().stack_size(512 * 1024 * 1024).spawn(move || { 
+	   // code to be executed in thread
+
+		println!("Read {} lines",_count);
+	//	g.print_vertexes();
+	//	g.dfs_incoming(1,1,0);
+	//	println!("Finish Order {:?}", g.finished_order);
+	//	println!("Starting Vertex {:?}", g.start_search);
+		g.finished_order = Vec::<u32>::new();
+		g.start_search = HashMap::<u32,Vec::<u32>>::new();
+		g.explored = HashMap::<u32,bool>::new();
+		let list : Vec<u32> = g.vertex_map.keys().cloned().collect();
+		g.dfs_loop_incoming(&list);
+	//	println!("Finish Order {:?}", g.finished_order);
+	//	println!("Starting Vertex {:?}", g.start_search);
+		let list : Vec<u32> = g.finished_order.iter().rev().cloned().collect();
+		g.dfs_loop_outgoing(&list);
+		println!("\n Start search has {} entries",g.start_search.len());
+	}).unwrap(); 
+	child.join().unwrap();
 //	println!("Starting Vertex {:?}", g.start_search);
 }
 
