@@ -141,11 +141,10 @@ impl Graph {
 	}
 
 
-	pub fn DFS(&mut self, vertex_id:  u32, start_vertex: u32, level: u32) {
+	pub fn dfs_outgoing(&mut self, vertex_id:  u32, start_vertex: u32, level: u32) {
 			
 			let spacer = (0..level*5).map(|_| " ").collect::<String>();
 			
-			//println!("{}Exploring {}",spacer,vertex_id);
 			// Set current node to explored
 			self.explored.insert(vertex_id,true);
 
@@ -155,8 +154,6 @@ impl Graph {
 			let next_v : Vertex;
 
 			if let Some(vertex) = self.vertex_map.get(&vertex_id) {
-			//	println!("{}Vertex {:?}",spacer,vertex);
-			//	println!("{}searching through {:?}",spacer,vertex.outgoing.keys());
 
 				next_v = vertex.clone();
 			}
@@ -169,24 +166,89 @@ impl Graph {
 			for edge in next_v.outgoing.keys() {
 				let next_vertex = edge.clone();
 				if !self.explored.contains_key(&edge) {
-					self.DFS(next_vertex,start_vertex,level+1);
+					self.dfs_outgoing(next_vertex,start_vertex,level+1);
 				}
 				else {
 			//		println!("{}Vertex {} is already explored",spacer,edge);
 				}
 			}
-			//Done with vertex (all outgoing edges explorered
 			// so add it to the finished list
 			self.finished_order.push(vertex_id);
 	}
 
-	pub fn DFS_loop(&mut self) {
-		let list : Vec<u32> = self.vertex_map.keys().cloned().collect();
+	pub fn dfs_incoming(&mut self, vertex_id:  u32, start_vertex: u32, level: u32) {
+			
+			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+			
+			// Set current node to explored
+			self.explored.insert(vertex_id,true);
+
+			let group_list = self.start_search.entry(start_vertex).or_insert(Vec::<u32>::new());
+			group_list.push(vertex_id);
+
+			let next_v : Vertex;
+
+			if let Some(vertex) = self.vertex_map.get(&vertex_id) {
+
+				next_v = vertex.clone();
+			}
+
+			else {
+				panic!("invalid vertex");
+			}
+
+			// Search through each edge
+			for edge in next_v.incoming.keys() {
+				let next_vertex = edge.clone();
+				if !self.explored.contains_key(&edge) {
+					self.dfs_incoming(next_vertex,start_vertex,level+1);
+				}
+				else {
+			//		println!("{}Vertex {} is already explored",spacer,edge);
+				}
+			}
+			// so add it to the finished list
+			self.finished_order.push(vertex_id);
+	}
+
+	pub fn dfs_loop_incoming(&mut self, list: &Vec<u32>) {
+
+		println!("Looping on incoming DFS");
+		self.finished_order = Vec::<u32>::new();
+		self.start_search = HashMap::<u32,Vec::<u32>>::new();
+		self.explored = HashMap::<u32,bool>::new();
+
+		let mut _count : usize = 0;
 		for v in list {
+			if _count % 10000 == 0 {
+				print!("*");
+				io::stdout().flush().unwrap();
+			}
 			let vertex = v.clone();
 			println!("Looping on {}",vertex);
 			if !self.explored.contains_key(&vertex) {
-				self.DFS(vertex,vertex,0);
+				self.dfs_incoming(vertex,vertex,0);
+			}
+			_count += 1;
+		}
+	}
+
+	pub fn dfs_loop_outgoing(&mut self, list: &Vec<u32>) {
+		println!("Looping on outgoing DFS");
+		self.finished_order = Vec::<u32>::new();
+		self.start_search = HashMap::<u32,Vec::<u32>>::new();
+		self.explored = HashMap::<u32,bool>::new();
+
+		let mut _count : usize = 0;
+		for v in list {
+			if _count % 10000 == 0 {
+				print!("#");
+				io::stdout().flush().unwrap();
+			}
+			let vertex = v.clone();
+			println!("Looping on {}",vertex);
+			if !self.explored.contains_key(&vertex) {
+				self.dfs_outgoing(vertex,vertex,0);
 			}
 		}
 	}
@@ -310,16 +372,24 @@ fn main() {
 		} 
     }
 	println!("Read {} lines",_count);
-	g.DFS(1,1,0);
-	println!("Finish Order {:?}", g.finished_order);
-	println!("Starting Vertex {:?}", g.start_search);
+//	g.print_vertexes();
+//	g.dfs_incoming(1,1,0);
+//	println!("Finish Order {:?}", g.finished_order);
+//	println!("Starting Vertex {:?}", g.start_search);
 	g.finished_order = Vec::<u32>::new();
 	g.start_search = HashMap::<u32,Vec::<u32>>::new();
 	g.explored = HashMap::<u32,bool>::new();
-	g.DFS_loop();
-	println!("Finish Order {:?}", g.finished_order);
-	println!("Starting Vertex {:?}", g.start_search);
-
+	let list : Vec<u32> = g.vertex_map.keys().cloned().collect();
+	g.dfs_loop_incoming(&list);
+//	println!("Finish Order {:?}", g.finished_order);
+//	println!("Starting Vertex {:?}", g.start_search);
+	let list : Vec<u32> = g.finished_order.iter().rev().cloned().collect();
+	g.dfs_loop_outgoing(&list);
+	println!("\n Final result");
+	for (k,v) in g.start_search {
+		println!("{} ({len}) ",k,len=v.len());
+	}
+//	println!("Starting Vertex {:?}", g.start_search);
 }
 
 
