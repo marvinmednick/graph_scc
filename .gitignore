@@ -11,3 +11,6 @@ Cargo.lock
 
 # Local link to executable
 scc
+
+# input source file;  zip version is in git
+SCC.txt
