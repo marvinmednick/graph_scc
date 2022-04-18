@@ -1,12 +1,9 @@
-use std::env;
-use std::process;
-// use std::error::Error;
+use std::env; use std::process; use std::io::{self, Write}; // use std::error::Error;
 //use std::cmp;
 use std::path::Path;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
-//use std::collections::{HashMap};
-use std::collections::BTreeMap;
+use std::collections::{HashMap,BTreeMap};
 //use rand::Rng;
 //use std::rc::Rc;
 //use std::cell::RefCell;
@@ -85,6 +82,10 @@ impl Vertex {
 #[derive(Debug,Clone)]
 struct Graph {
 	vertex_map:  BTreeMap::<u32, Vertex>,
+	edge_count:  u32,
+	explored:  HashMap::<u32,bool>,
+	pub finished_order:  Vec::<u32>,
+	pub start_search:  HashMap::<u32,Vec::<u32>>,
 }
 
 
@@ -93,6 +94,10 @@ impl Graph {
 		let v_map = BTreeMap::<u32, Vertex>::new();
 		Graph {
 				vertex_map: v_map,
+				edge_count: 0,
+				explored:  HashMap::<u32,bool>::new(),
+				finished_order:  Vec::<u32>::new(),
+				start_search : HashMap::<u32,Vec::<u32>>::new(),
 		}
 	}
 
@@ -109,15 +114,6 @@ impl Graph {
 		
 	}
 
-	
-	pub fn delete_edge(&mut self,v1 : u32, v2 : u32) -> Result<(),String>  {
-	
-		self.vertex_map.get_mut(&v1).unwrap().del_outgoing(v2)?	;
-		self.vertex_map.get_mut(&v2).unwrap().del_incoming(v1)?;
-		Ok(())
-
-	}
-
 
 	pub fn get_vertexes(&self) -> Vec<u32> {
 		self.vertex_map.keys().cloned().collect()
@@ -126,7 +122,7 @@ impl Graph {
 
 	pub fn print_vertexes(&self) {
 		for (key, value) in &self.vertex_map {
-			let out_list : String = value.outgoing.iter().map(|(x, y)| format!("{} {}",x,y)).collect();
+			let out_list : String = value.outgoing.iter().map(|(x, y)| if y > &1 {format!("{}({}) ; ",x,y) } else { format!("{} ;",x)}).collect();
 			println!("Vertex {} ({}) :  {}",key,value.vertex_id,out_list);
 		}
 					
@@ -142,9 +138,94 @@ impl Graph {
 			self.vertex_map.insert(id.clone(),v.clone());
 			Some(self.vertex_map.len())  
 		}
-		
 	}
 
+
+	pub fn DFS(&mut self, vertex_id:  u32, start_vertex: u32, level: u32) {
+			
+			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+			
+			//println!("{}Exploring {}",spacer,vertex_id);
+			// Set current node to explored
+			self.explored.insert(vertex_id,true);
+
+			let group_list = self.start_search.entry(start_vertex).or_insert(Vec::<u32>::new());
+			group_list.push(vertex_id);
+
+			let next_v : Vertex;
+
+			if let Some(vertex) = self.vertex_map.get(&vertex_id) {
+			//	println!("{}Vertex {:?}",spacer,vertex);
+			//	println!("{}searching through {:?}",spacer,vertex.outgoing.keys());
+
+				next_v = vertex.clone();
+			}
+
+			else {
+				panic!("invalid vertex");
+			}
+
+			// Search through each edge
+			for edge in next_v.outgoing.keys() {
+				let next_vertex = edge.clone();
+				if !self.explored.contains_key(&edge) {
+					self.DFS(next_vertex,start_vertex,level+1);
+				}
+				else {
+			//		println!("{}Vertex {} is already explored",spacer,edge);
+				}
+			}
+			//Done with vertex (all outgoing edges explorered
+			// so add it to the finished list
+			self.finished_order.push(vertex_id);
+	}
+
+	pub fn DFS_loop(&mut self) {
+		let list : Vec<u32> = self.vertex_map.keys().cloned().collect();
+		for v in list {
+			let vertex = v.clone();
+			println!("Looping on {}",vertex);
+			if !self.explored.contains_key(&vertex) {
+				self.DFS(vertex,vertex,0);
+			}
+		}
+	}
+
+/*			
+	pub fn DFS2(&mut self, vertex_id:  u32, level: u32) {
+			let spacer = (0..level*5).map(|_| " ").collect::<String>();
+			
+			println!("{}Exploring {}",spacer,vertex_id);
+			// Set current node to explored
+			self.explored.insert(vertex_id,true);
+
+
+			if let Some(vertex) = self.vertex_map.get(&vertex_id) {
+				println!("{}Vertex {:?}",spacer,vertex);
+				println!("{}searching through {:?}",spacer,vertex.outgoing.keys());
+
+				// Search through each edge
+				for edge in vertex.outgoing.keys() {
+					let next_vertex = edge.clone();
+					if !self.explored.contains_key(&edge) {
+						self.DFS(next_vertex,level+1);
+					}
+					else {
+						println!("{}Vertex {} is already explored",spacer,edge);
+					}
+				}
+				//Done with vertex (all outgoing edges explorered
+				// so add it to the finished list
+				self.finished_order.push(vertex_id);
+			}
+
+			else {
+				panic!("invalid vertex");
+			}
+
+	}
+
+*/
 
 	pub fn add_edge(&mut self, v1: u32, v2: u32) -> Option<usize> {
 
@@ -162,7 +243,17 @@ impl Graph {
 		let vert2 = v_map.get_mut(&v2).unwrap(); 
 		vert2.add_incoming(v1);
 
+		self.edge_count += 1;
 		Some(new_cnt)
+
+	}
+
+	pub fn delete_edge(&mut self,v1 : u32, v2 : u32) -> Result<(),String>  {
+	
+		self.vertex_map.get_mut(&v1).unwrap().del_outgoing(v2)?	;
+		self.vertex_map.get_mut(&v2).unwrap().del_incoming(v1)?;
+		self.edge_count -= 1;
+		Ok(())
 
 	}
 }
@@ -177,12 +268,6 @@ fn main() {
 	println!("Args {:?} {}",args,args.len());
 
 	if args.len() < 2 { eprintln!("Usage: {} filename <count>", args[0]); process::exit(1); }
-	let mut attempts : u32 = 1;
-	if args.len() > 2 {
-		attempts = args[2].parse().unwrap();
-	}
-	println!("Attempting mincut {} times",attempts);
-
 
   // Create a path to the desired file
     let path = Path::new(&args[1]);
@@ -205,13 +290,35 @@ fn main() {
 		let mut tokens = line_data.split_whitespace();
 		let vertex = tokens.next().unwrap().parse::<u32>().unwrap();
 		let adjacent : Vec<u32> = tokens.map(|x| x.to_string().parse::<u32>().unwrap()).collect();
+		
 
-		g.create_vertex(&vertex);
+		let mut other : u32 = 0;
+//		g.create_vertex(&vertex);
 		for other_v in &adjacent {
+
+			other = other_v.clone();
 			let _num_edges = g.add_edge(vertex,*other_v);
+		
 		}
+		if _count % 100000 == 0 {
+			println!(" {} : {}  from {}  to {}" ,_count,line_data,vertex,other);
+			io::stdout().flush().unwrap();
+		}
+		if _count % 10000 == 0 {
+			print!(".");
+			io::stdout().flush().unwrap();
+		} 
     }
 	println!("Read {} lines",_count);
+	g.DFS(1,1,0);
+	println!("Finish Order {:?}", g.finished_order);
+	println!("Starting Vertex {:?}", g.start_search);
+	g.finished_order = Vec::<u32>::new();
+	g.start_search = HashMap::<u32,Vec::<u32>>::new();
+	g.explored = HashMap::<u32,bool>::new();
+	g.DFS_loop();
+	println!("Finish Order {:?}", g.finished_order);
+	println!("Starting Vertex {:?}", g.start_search);
 
 }
 
